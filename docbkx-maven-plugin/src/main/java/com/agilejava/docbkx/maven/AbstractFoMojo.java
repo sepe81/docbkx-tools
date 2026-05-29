@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.io.Reader;
 
 import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
@@ -53,6 +54,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.fop.apps.FOPException;
 import org.apache.fop.apps.FOUserAgent;
 import org.apache.fop.apps.Fop;
+import org.apache.fop.apps.FopConfParser;
 import org.apache.fop.apps.FopFactory;
 import org.apache.fop.apps.MimeConstants;
 import org.apache.log4j.ConsoleAppender;
@@ -73,7 +75,7 @@ import org.xml.sax.SAXException;
  * @author Wilfred Springer
  */
 public abstract class AbstractFoMojo extends AbstractMojoBase {
-  private String baseUrl;
+  String baseUrl;
 
   /**
    * The fonts that should be taken into account. (Without this parameter, the PDF document
@@ -235,52 +237,80 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
 
   /**
    * Creates a configured {@link FopFactory} using FOP 2.x API.
-   * If an external FOP configuration file is specified, it is loaded directly.
-   * Otherwise, a configuration is generated from the inline font definitions
-   * using a StringTemplate and passed to FOP as an InputStream with an explicit
-   * base URI so that relative font/image paths resolve correctly.
+   * Routes both inline (StringTemplate-generated) and external configurations
+   * through {@link FopConfParser} so that {@link #baseUrl} — derived from the
+   * source DocBook XML's parent directory in {@link #adjustTransformer} — is
+   * applied as the factory's base URI in both cases. This preserves the
+   * pre-2.x behaviour where {@code FOUserAgent.setBaseURL(baseUrl)} was set
+   * unconditionally and is essential for resolving relative {@code src=}
+   * URIs in {@code <fo:external-graphic>} and friends.
    *
    * @return a configured FopFactory
    * @throws MojoExecutionException on configuration load failure
    */
   protected FopFactory createFopFactory() throws MojoExecutionException {
     try {
+      URI baseURI = baseUrl != null
+          ? new URI(baseUrl)
+          : new File(".").toURI();
+      FopConfParser parser;
       if (externalFOPConfiguration != null) {
         if (getLog().isDebugEnabled()) {
           getLog().debug("Using external FOP configuration file: " + externalFOPConfiguration);
         }
-        return FopFactory.newInstance(externalFOPConfiguration);
+        parser = new FopConfParser(externalFOPConfiguration, baseURI);
       } else {
-        ClassLoader loader = this.getClass().getClassLoader();
-        InputStream templateStream = loader.getResourceAsStream("fonts.stg");
-        Reader reader = new InputStreamReader(templateStream);
-        StringTemplateGroup group = new StringTemplateGroup(reader);
-        StringTemplate template = group.getInstanceOf("config");
-        template.setAttribute("fonts", fonts);
-
-        if (targetResolution != 0) {
-          template.setAttribute("targetResolution", targetResolution);
-        }
-        if (sourceResolution != 0) {
-          template.setAttribute("sourceResolution", sourceResolution);
-        }
-
-        final String config = template.toString();
+        final String config = buildInlineConfig();
         if (getLog().isDebugEnabled()) {
           getLog().debug(config);
         }
-
-        URI baseURI = baseUrl != null
-            ? new URI(baseUrl)
-            : new File(".").toURI();
-        return FopFactory.newInstance(baseURI, IOUtils.toInputStream(config));
+        parser = new FopConfParser(
+            IOUtils.toInputStream(config, StandardCharsets.UTF_8),
+            baseURI);
       }
+      return parser.getFopFactoryBuilder().build();
     } catch (IOException ioe) {
       throw new MojoExecutionException("Failed to load FOP config.", ioe);
     } catch (SAXException saxe) {
       throw new MojoExecutionException("Failed to parse FOP config.", saxe);
     } catch (URISyntaxException e) {
       throw new MojoExecutionException("Invalid base URL for FOP factory: " + baseUrl, e);
+    }
+  }
+
+  /**
+   * Renders the inline FOP configuration XML from the {@code fonts.stg}
+   * StringTemplate using the currently configured {@link #fonts},
+   * {@link #targetResolution} and {@link #sourceResolution}.
+   *
+   * <p>Package-private so unit tests can assert that mojo parameters flow
+   * into the generated XML.
+   *
+   * @return the generated FOP configuration as XML text (UTF-8 semantics)
+   * @throws IOException if the template resource cannot be read
+   */
+  String buildInlineConfig() throws IOException {
+    ClassLoader loader = this.getClass().getClassLoader();
+    InputStream templateStream = loader.getResourceAsStream("fonts.stg");
+    if (templateStream == null) {
+      throw new IOException("Resource 'fonts.stg' not found on classpath.");
+    }
+    try {
+      Reader reader = new InputStreamReader(templateStream, StandardCharsets.UTF_8);
+      StringTemplateGroup group = new StringTemplateGroup(reader);
+      StringTemplate template = group.getInstanceOf("config");
+      template.setAttribute("fonts", fonts);
+
+      if (targetResolution != 0) {
+        template.setAttribute("targetResolution", targetResolution);
+      }
+      if (sourceResolution != 0) {
+        template.setAttribute("sourceResolution", sourceResolution);
+      }
+
+      return template.toString();
+    } finally {
+      IOUtils.closeQuietly(templateStream);
     }
   }
 
