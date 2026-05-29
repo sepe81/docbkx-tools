@@ -72,10 +72,10 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>2.0.2</version>
+        <version>3.11.0</version>
         <configuration>
-          <source>1.4</source>
-          <target>1.4</target>
+          <source>8</source>
+          <target>8</target>
         </configuration>
       </plugin>
 
@@ -203,7 +203,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-plugin-plugin</artifactId>
-        <version>3.2</version>
+        <version>3.9.0</version>
         <configuration>
           <skipErrorNoDescriptorsFound>true</skipErrorNoDescriptorsFound>
         </configuration>
@@ -305,24 +305,8 @@
       </dependency>
       <dependency>
         <groupId>org.apache.xmlgraphics</groupId>
-        <artifactId>fop</artifactId>
-        <version>1.1</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.apache.avalon.framework</groupId>
-            <artifactId>avalon-framework-api</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.avalon.framework</groupId>
-        <artifactId>avalon-framework-api</artifactId>
-        <version>4.3.1</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.avalon.framework</groupId>
-        <artifactId>avalon-framework-impl</artifactId>
-        <version>4.3.1</version>
+        <artifactId>fop-core</artifactId>
+        <version>2.11</version>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>

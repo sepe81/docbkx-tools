@@ -41,12 +41,11 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.sax.SAXResult;
 import javax.xml.transform.stream.StreamSource;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import org.antlr.stringtemplate.StringTemplate;
 import org.antlr.stringtemplate.StringTemplateGroup;
-
-import org.apache.avalon.framework.configuration.Configuration;
-import org.apache.avalon.framework.configuration.ConfigurationException;
-import org.apache.avalon.framework.configuration.DefaultConfigurationBuilder;
 
 import org.apache.commons.io.IOUtils;
 
@@ -138,35 +137,26 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
   protected void configureLog() {
     Logger rootLogger = Logger.getRootLogger();
     if (!rootLogger.getAllAppenders().hasMoreElements()) {
-      // configure a default logger if there is no previous configuration
       rootLogger.setLevel(Level.WARN);
       rootLogger.addAppender(new ConsoleAppender(
           new PatternLayout(PatternLayout.TTCC_CONVERSION_PATTERN)));
-      }
-
-    // then configure loggers for fop and xmlgraphics
-    Logger fopLogger = rootLogger.getLoggerRepository().getLogger("org.apache.fop");
-    fopLogger.setLevel(Level.toLevel(fopLogLevel));
-    Logger xmlgraphicsLogger = rootLogger.getLoggerRepository().getLogger("org.apache.xmlgraphics");
-    xmlgraphicsLogger.setLevel(Level.toLevel(fopLogLevel));
+    }
+    // FOP 2.x routes through Commons Logging → SLF4J; configure via SLF4J binding.
   }
 
   /**
-   * DOCUMENT ME!
+   * Converts the intermediate FO file produced by the XSLT transformation into the target
+   * format (PDF or other) using Apache FOP 2.x.
    *
-   * @param result DOCUMENT ME!
-   *
-   * @throws MojoExecutionException DOCUMENT ME!
+   * @param result the FO file to convert
+   * @throws MojoExecutionException on conversion failure
    */
   public void postProcessResult(File result) throws MojoExecutionException {
     super.postProcessResult(result);
 
-    final FopFactory fopFactory = FopFactory.newInstance();
+    final FopFactory fopFactory = createFopFactory();
     final FOUserAgent userAgent = fopFactory.newFOUserAgent();
-    userAgent.setBaseURL(baseUrl);
 
-    // FOUserAgent can be used to set PDF metadata
-    Configuration configuration = loadFOPConfig();
     InputStream in = null;
     OutputStream out = null;
 
@@ -175,7 +165,6 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
 
       final File outputFile = getOutputFile(result);
       out = openFileForOutput(outputFile);
-      fopFactory.setUserConfig(configuration);
 
       Fop fop = fopFactory.newFop(getMimeType(), userAgent, out);
 
@@ -185,6 +174,7 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
 
       // Setup input stream
       Source src = new StreamSource(in);
+      src.setSystemId(result.toURI().toString());
 
       // Resulting SAX events (the generated FO) must be piped through to FOP
       Result res = new SAXResult(fop.getDefaultHandler());
@@ -244,65 +234,53 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
   }
 
   /**
-   * DOCUMENT ME!
+   * Creates a configured {@link FopFactory} using FOP 2.x API.
+   * If an external FOP configuration file is specified, it is loaded directly.
+   * Otherwise, a configuration is generated from the inline font definitions
+   * using a StringTemplate and passed to FOP as an InputStream with an explicit
+   * base URI so that relative font/image paths resolve correctly.
    *
-   * @return DOCUMENT ME!
-   *
-   * @throws MojoExecutionException DOCUMENT ME!
+   * @return a configured FopFactory
+   * @throws MojoExecutionException on configuration load failure
    */
-  protected Configuration loadFOPConfig() throws MojoExecutionException {
-    // if using external fop configuration file
-    if (externalFOPConfiguration != null) {
-      DefaultConfigurationBuilder builder = new DefaultConfigurationBuilder();
+  protected FopFactory createFopFactory() throws MojoExecutionException {
+    try {
+      if (externalFOPConfiguration != null) {
+        if (getLog().isDebugEnabled()) {
+          getLog().debug("Using external FOP configuration file: " + externalFOPConfiguration);
+        }
+        return FopFactory.newInstance(externalFOPConfiguration);
+      } else {
+        ClassLoader loader = this.getClass().getClassLoader();
+        InputStream templateStream = loader.getResourceAsStream("fonts.stg");
+        Reader reader = new InputStreamReader(templateStream);
+        StringTemplateGroup group = new StringTemplateGroup(reader);
+        StringTemplate template = group.getInstanceOf("config");
+        template.setAttribute("fonts", fonts);
 
-      try {
-        if (getLog().isDebugEnabled())
-          getLog().debug("Using external FOP configuration file: " + externalFOPConfiguration.toString());
+        if (targetResolution != 0) {
+          template.setAttribute("targetResolution", targetResolution);
+        }
+        if (sourceResolution != 0) {
+          template.setAttribute("sourceResolution", sourceResolution);
+        }
 
-        getLog().info("Ignoring pom inline FOP configuration");
+        final String config = template.toString();
+        if (getLog().isDebugEnabled()) {
+          getLog().debug(config);
+        }
 
-        return builder.buildFromFile(externalFOPConfiguration);
-      } catch (IOException ioe) {
-        throw new MojoExecutionException("Failed to load external FOP config.", ioe);
-      } catch (SAXException saxe) {
-        throw new MojoExecutionException("Failed to parse external FOP config.", saxe);
-      } catch (ConfigurationException e) {
-        throw new MojoExecutionException("Failed to do something Avalon requires....", e);
+        URI baseURI = baseUrl != null
+            ? new URI(baseUrl)
+            : new File(".").toURI();
+        return FopFactory.newInstance(baseURI, IOUtils.toInputStream(config));
       }
-
-      // else generating the configuration file
-    } else {
-      ClassLoader loader = this.getClass().getClassLoader();
-      InputStream in = loader.getResourceAsStream("fonts.stg");
-      Reader reader = new InputStreamReader(in);
-      StringTemplateGroup group = new StringTemplateGroup(reader);
-      StringTemplate template = group.getInstanceOf("config");
-      template.setAttribute("fonts", fonts);
-
-      if (targetResolution != 0) {
-        template.setAttribute("targetResolution", targetResolution);
-      }
-
-      if (sourceResolution != 0) {
-        template.setAttribute("sourceResolution", sourceResolution);
-      }
-
-      DefaultConfigurationBuilder builder = new DefaultConfigurationBuilder();
-      final String config = template.toString();
-
-      if (getLog().isDebugEnabled()) {
-        getLog().debug(config);
-      }
-
-      try {
-        return builder.build(IOUtils.toInputStream(config));
-      } catch (IOException ioe) {
-        throw new MojoExecutionException("Failed to load FOP config.", ioe);
-      } catch (SAXException saxe) {
-        throw new MojoExecutionException("Failed to parse FOP config.", saxe);
-      } catch (ConfigurationException e) {
-        throw new MojoExecutionException("Failed to do something Avalon requires....", e);
-      }
+    } catch (IOException ioe) {
+      throw new MojoExecutionException("Failed to load FOP config.", ioe);
+    } catch (SAXException saxe) {
+      throw new MojoExecutionException("Failed to parse FOP config.", saxe);
+    } catch (URISyntaxException e) {
+      throw new MojoExecutionException("Invalid base URL for FOP factory: " + baseUrl, e);
     }
   }
 
