@@ -25,13 +25,15 @@
             <executions>
               <execution>
                 <goals>
-                  <goal>attached</goal>
+                  <goal>single</goal>
                 </goals>
                 <phase>package</phase>
               </execution>
             </executions>
             <configuration>
-              <descriptor>${basedir}/src/assembly/dist.xml</descriptor>
+              <descriptors>
+                <descriptor>${basedir}/src/assembly/dist.xml</descriptor>
+              </descriptors>
             </configuration>
           </plugin>
           <plugin>
