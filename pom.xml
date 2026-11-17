@@ -66,6 +66,7 @@
   <properties>
     <java.version>8</java.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
+    <junit.jupiter.version>5.13.4</junit.jupiter.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
@@ -75,6 +76,17 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.16.0</version>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- JUnit 3.8.1 leaks in transitively via plexus-container-default and would make surefire pull in the vintage engine -->
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>junit:junit</classpathDependencyExclude>
+          </classpathDependencyExcludes>
+        </configuration>
       </plugin>
 
       <plugin>
@@ -276,6 +288,12 @@
   </distributionManagement>
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>${junit.jupiter.version}</version>
+        <scope>test</scope>
+      </dependency>
       <dependency>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-site-plugin</artifactId>

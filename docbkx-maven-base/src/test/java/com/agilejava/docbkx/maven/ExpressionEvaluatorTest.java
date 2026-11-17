@@ -31,7 +31,9 @@ import javax.servlet.jsp.el.VariableResolver;
 
 import org.apache.commons.el.ExpressionEvaluatorImpl;
 
-import junit.framework.TestCase;
+import org.junit.jupiter.api.Test;
+
+
 
 /**
  * DOCUMENT ME!
@@ -39,13 +41,14 @@ import junit.framework.TestCase;
  * @author $author$
  * @version $Revision$
  */
-public class ExpressionEvaluatorTest extends TestCase {
+public class ExpressionEvaluatorTest {
   /**
    * DOCUMENT ME!
    *
    * @throws ELException DOCUMENT ME!
    */
-  public void testEvaluator() throws ELException {
+  @Test
+  void testEvaluator() throws ELException {
     ExpressionEvaluator evaluator = new ExpressionEvaluatorImpl();
     final Map foo = new HashMap();
     foo.put("bar", "whatever");

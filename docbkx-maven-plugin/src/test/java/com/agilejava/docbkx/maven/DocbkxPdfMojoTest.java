@@ -29,7 +29,14 @@ import org.apache.fop.apps.FopFactory;
 
 import org.apache.maven.plugin.MojoExecutionException;
 
-import org.codehaus.plexus.PlexusTestCase;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.agilejava.docbkx.maven.DocbkxPdfMojo;
 
@@ -37,57 +44,57 @@ import com.agilejava.docbkx.maven.DocbkxPdfMojo;
  * Tests for {@link AbstractFoMojo#createFopFactory()} and the inline FOP
  * configuration builder.
  */
-public class DocbkxPdfMojoTest extends PlexusTestCase {
+public class DocbkxPdfMojoTest {
   DocbkxPdfMojo mojo;
 
-  public void setUp() throws Exception {
-    super.setUp();
+  @BeforeEach
+  void setUp() {
     mojo = new DocbkxPdfMojo();
   }
 
   /**
    * Default (inline template) config should produce a FopFactory without error.
    */
-  public void testCreateFopFactoryDefault() throws MojoExecutionException {
+  @Test
+  void testCreateFopFactoryDefault() throws MojoExecutionException {
     FopFactory factory = mojo.createFopFactory();
-    assertNotNull("createFopFactory() should return a non-null FopFactory", factory);
+    assertNotNull(factory, "createFopFactory() should return a non-null FopFactory");
   }
 
   /**
    * Invalid external config file should throw MojoExecutionException.
    */
-  public void testCreateFopFactoryInvalidFile() {
+  @Test
+  void testCreateFopFactoryInvalidFile() {
     mojo.externalFOPConfiguration = new File("/doesnotexist/fop.xconf");
-    try {
-      mojo.createFopFactory();
-      fail("Should have failed with an invalid external FOP configuration file");
-    } catch (MojoExecutionException e) {
-      // expected
-    }
+    assertThrows(MojoExecutionException.class, () -> mojo.createFopFactory(),
+        "Should have failed with an invalid external FOP configuration file");
   }
 
   /**
    * Valid external config file should produce a FopFactory without error.
    */
-  public void testCreateFopFactoryValidFile() throws MojoExecutionException {
-    mojo.externalFOPConfiguration = new File(PlexusTestCase.getBasedir(), "src/test/resources/fop.xconf");
+  @Test
+  void testCreateFopFactoryValidFile() throws MojoExecutionException {
+    mojo.externalFOPConfiguration = new File(getBasedir(), "src/test/resources/fop.xconf");
     FopFactory factory = mojo.createFopFactory();
-    assertNotNull("createFopFactory() with valid file should return a non-null FopFactory", factory);
+    assertNotNull(factory, "createFopFactory() with valid file should return a non-null FopFactory");
   }
 
   /**
    * When no resolutions are set, the generated inline config must not contain
    * stray {@code <target-resolution>} / {@code <source-resolution>} elements.
    */
-  public void testBuildInlineConfigDefaultsOmitResolutions() throws Exception {
+  @Test
+  void testBuildInlineConfigDefaultsOmitResolutions() throws Exception {
     String xml = mojo.buildInlineConfig();
-    assertNotNull("buildInlineConfig() must not return null", xml);
+    assertNotNull(xml, "buildInlineConfig() must not return null");
     assertFalse(
-        "Default config must not contain <target-resolution>: " + xml,
-        xml.contains("<target-resolution>"));
+        xml.contains("<target-resolution>"),
+        "Default config must not contain <target-resolution>: " + xml);
     assertFalse(
-        "Default config must not contain <source-resolution>: " + xml,
-        xml.contains("<source-resolution>"));
+        xml.contains("<source-resolution>"),
+        "Default config must not contain <source-resolution>: " + xml);
   }
 
   /**
@@ -95,16 +102,17 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
    * the values into the generated inline FOP configuration XML. This guards
    * against a silent regression where mojo parameters stop reaching FOP.
    */
-  public void testBuildInlineConfigPropagatesResolutions() throws Exception {
+  @Test
+  void testBuildInlineConfigPropagatesResolutions() throws Exception {
     mojo.targetResolution = 600;
     mojo.sourceResolution = 150;
     String xml = mojo.buildInlineConfig();
     assertTrue(
-        "Inline config must contain target-resolution 600: " + xml,
-        xml.contains("600"));
+        xml.contains("600"),
+        "Inline config must contain target-resolution 600: " + xml);
     assertTrue(
-        "Inline config must contain source-resolution 150: " + xml,
-        xml.contains("150"));
+        xml.contains("150"),
+        "Inline config must contain source-resolution 150: " + xml);
   }
 
   /**
@@ -114,7 +122,8 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
    * relative {@code <fo:external-graphic src="..."/>} URIs against
    * the source XML directory.
    */
-  public void testCreateFopFactoryAppliesBaseUrl() throws Exception {
+  @Test
+  void testCreateFopFactoryAppliesBaseUrl() throws Exception {
     assertResolvesAgainstBaseUrl();
   }
 
@@ -122,9 +131,14 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
    * The external-config branch must apply {@link AbstractFoMojo#baseUrl} as well
    * when the configuration file does not declare its own {@code <base>} element.
    */
-  public void testCreateFopFactoryExternalConfigAppliesBaseUrl() throws Exception {
-    mojo.externalFOPConfiguration = new File(PlexusTestCase.getBasedir(), "src/test/resources/fop-no-base.xconf");
+  @Test
+  void testCreateFopFactoryExternalConfigAppliesBaseUrl() throws Exception {
+    mojo.externalFOPConfiguration = new File(getBasedir(), "src/test/resources/fop-no-base.xconf");
     assertResolvesAgainstBaseUrl();
+  }
+
+  private static String getBasedir() {
+    return System.getProperty("basedir", System.getProperty("user.dir"));
   }
 
   private void assertResolvesAgainstBaseUrl() throws Exception {
@@ -134,7 +148,7 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
     probe.deleteOnExit();
     try {
       // Drop a probe file so FOP's resource resolver can find a real target.
-      assertTrue("Could not create probe file", probe.createNewFile());
+      assertTrue(probe.createNewFile(), "Could not create probe file");
 
       mojo.baseUrl = tmp.toURI().toString();
       FopFactory factory = mojo.createFopFactory();
@@ -144,14 +158,14 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
       // it is anchored under the configured baseUrl.
       StreamSource resolved = factory.newFOUserAgent().resolveURI("probe.png");
       assertNotNull(
+          resolved,
           "FOUserAgent.resolveURI should resolve relative URI against baseUrl="
-              + mojo.baseUrl,
-          resolved);
+              + mojo.baseUrl);
       assertNotNull(resolved.getSystemId());
       assertTrue(
+          resolved.getSystemId().startsWith(tmp.toURI().toString()),
           "Resolved URI must be anchored under baseUrl. Expected prefix: "
-              + tmp.toURI() + " but got: " + resolved.getSystemId(),
-          resolved.getSystemId().startsWith(tmp.toURI().toString()));
+              + tmp.toURI() + " but got: " + resolved.getSystemId());
     } finally {
       probe.delete();
       tmp.delete();
@@ -162,7 +176,8 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
    * The log4j level names accepted by {@code fopLogLevel} must map to the matching
    * java.util.logging levels; unknown names fall back to WARNING.
    */
-  public void testToJulLevel() {
+  @Test
+  void testToJulLevel() {
     assertEquals(java.util.logging.Level.OFF, AbstractFoMojo.toJulLevel("OFF"));
     assertEquals(java.util.logging.Level.SEVERE, AbstractFoMojo.toJulLevel("FATAL"));
     assertEquals(java.util.logging.Level.SEVERE, AbstractFoMojo.toJulLevel("ERROR"));

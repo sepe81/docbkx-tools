@@ -21,23 +21,25 @@ package com.agilejava.docbkx.support.fop;
 
 import java.io.File;
 
-import org.codehaus.plexus.PlexusTestCase;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * DOCUMENT ME!
  *
  * @author Cedric Pronzato
  */
-public class FontmetricsMojoTest extends PlexusTestCase {
+public class FontmetricsMojoTest {
   /**
    * DOCUMENT ME!
    *
    * @param mojo DOCUMENT ME!
    */
-  public void initMojoDefault(FontmetricsMojo mojo) {
-    mojo.sourceDirectory = new File(PlexusTestCase.getBasedir(), "src/test/resources/fonts/");
-    assertTrue("Default sourceDirectory should be valid", mojo.sourceDirectory.isDirectory());
-    mojo.targetDirectory = new File(PlexusTestCase.getBasedir(), "target/test/fonts/");
+  void initMojoDefault(FontmetricsMojo mojo) {
+    mojo.sourceDirectory = new File(getBasedir(), "src/test/resources/fonts/");
+    assertTrue(mojo.sourceDirectory.isDirectory(), "Default sourceDirectory should be valid");
+    mojo.targetDirectory = new File(getBasedir(), "target/test/fonts/");
     mojo.targetDirectory.mkdirs();
   }
 
@@ -46,12 +48,12 @@ public class FontmetricsMojoTest extends PlexusTestCase {
    *
    * @param mojo DOCUMENT ME!
    */
-  public void validateGen(FontmetricsMojo mojo) {
+  void validateGen(FontmetricsMojo mojo) {
     File expectedGen = new File(mojo.targetDirectory, "Pecita-metrics.xml");
-    assertTrue("metrics file not generated: " + expectedGen.getAbsolutePath(), expectedGen.exists());
+    assertTrue(expectedGen.exists(), "metrics file not generated: " + expectedGen.getAbsolutePath());
     // space in font name
     expectedGen = new File(mojo.targetDirectory, "Pe cita-metrics.xml");
-    assertTrue("metrics file not generated: " + expectedGen.getAbsolutePath(), expectedGen.exists());
+    assertTrue(expectedGen.exists(), "metrics file not generated: " + expectedGen.getAbsolutePath());
   }
 
   /**
@@ -59,7 +61,8 @@ public class FontmetricsMojoTest extends PlexusTestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  public void testFontmetricsGen() throws Exception {
+  @Test
+  void testFontmetricsGen() throws Exception {
     FontmetricsMojo mojo = new FontmetricsMojo();
     initMojoDefault(mojo);
     mojo.execute();
@@ -72,13 +75,18 @@ public class FontmetricsMojoTest extends PlexusTestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  public void testFontmetricsGenSpaceDir() throws Exception {
+  @Test
+  void testFontmetricsGenSpaceDir() throws Exception {
     FontmetricsMojo mojo = new FontmetricsMojo();
     initMojoDefault(mojo);
-    mojo.targetDirectory = new File(PlexusTestCase.getBasedir(), "target/test/fon ts/");
+    mojo.targetDirectory = new File(getBasedir(), "target/test/fon ts/");
     mojo.targetDirectory.mkdirs();
     mojo.execute();
 
     validateGen(mojo);
+  }
+
+  private static String getBasedir() {
+    return System.getProperty("basedir", System.getProperty("user.dir"));
   }
 }

@@ -22,7 +22,10 @@ package com.agilejava.docbkx.maven;
 import java.util.Map;
 import java.util.Properties;
 
-import junit.framework.TestCase;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * DOCUMENT ME!
@@ -30,11 +33,12 @@ import junit.framework.TestCase;
  * @author $author$
  * @version $Revision$
  */
-public class ExpressionUtilsTest extends TestCase {
+public class ExpressionUtilsTest {
   /**
    * DOCUMENT ME!
    */
-  public void testCreateTreeTest() {
+  @Test
+  void testCreateTreeTest() {
     Properties properties = new Properties();
     properties.setProperty("foo.1", "bar");
     properties.setProperty("foo.2", "foo");

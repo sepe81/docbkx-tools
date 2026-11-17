@@ -25,21 +25,31 @@ import java.security.Permission;
 
 import org.apache.fop.fonts.apps.TTFReader;
 
-import org.codehaus.plexus.PlexusTestCase;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * DOCUMENT ME!
  *
  * @author Cedric Pronzato
  */
-public class FOPReaderExitTest extends PlexusTestCase {
+// System.setSecurityManager() throws UnsupportedOperationException as of Java 24
+@DisabledForJreRange(min = JRE.JAVA_24)
+public class FOPReaderExitTest {
   /**
    * DOCUMENT ME!
    *
    * @throws Exception DOCUMENT ME!
    */
-  protected void setUp() throws Exception {
-    super.setUp();
+  @BeforeEach
+  void setUp() {
     System.setSecurityManager(new NoExitSecurityManager());
   }
 
@@ -48,9 +58,9 @@ public class FOPReaderExitTest extends PlexusTestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  protected void tearDown() throws Exception {
+  @AfterEach
+  void tearDown() {
     System.setSecurityManager(null); // or save and restore original
-    super.tearDown();
   }
 
   /**
@@ -58,10 +68,10 @@ public class FOPReaderExitTest extends PlexusTestCase {
    *
    * @param mojo DOCUMENT ME!
    */
-  public void initMojoDefault(FontmetricsMojo mojo) {
-    mojo.sourceDirectory = new File(PlexusTestCase.getBasedir(), "src/test/resources/fontsko/");
-    assertTrue("Default sourceDirectory should be valid", mojo.sourceDirectory.isDirectory());
-    mojo.targetDirectory = new File(PlexusTestCase.getBasedir(), "target/test/fontsko/");
+  void initMojoDefault(FontmetricsMojo mojo) {
+    mojo.sourceDirectory = new File(getBasedir(), "src/test/resources/fontsko/");
+    assertTrue(mojo.sourceDirectory.isDirectory(), "Default sourceDirectory should be valid");
+    mojo.targetDirectory = new File(getBasedir(), "target/test/fontsko/");
     mojo.targetDirectory.mkdirs();
   }
 
@@ -70,16 +80,17 @@ public class FOPReaderExitTest extends PlexusTestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  public void testFopExistsOnInvalidFont() throws Exception {
-    File font = new File(PlexusTestCase.getBasedir(), "src/test/resources/fontsko/test.ttf");
-    File metrics = new File(PlexusTestCase.getBasedir(), "target/test/fontsko/test-metrics.xml");
+  @Test
+  void testFopExistsOnInvalidFont() throws Exception {
+    File font = new File(getBasedir(), "src/test/resources/fontsko/test.ttf");
+    File metrics = new File(getBasedir(), "target/test/fontsko/test-metrics.xml");
     metrics.getParentFile().mkdirs();
 
     try {
       TTFReader.main(new String[] { font.getCanonicalPath(), metrics.getCanonicalPath() });
       fail("TTFreader should have fail in loading corrupted font");
     } catch (ExitException e) {
-      assertEquals("Exit status", -1, e.status);
+      assertEquals(-1, e.status, "Exit status");
     }
   }
 
@@ -88,7 +99,8 @@ public class FOPReaderExitTest extends PlexusTestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  public void testFontmetricsMojoOnInvalidFont() throws Exception {
+  @Test
+  void testFontmetricsMojoOnInvalidFont() throws Exception {
     FontmetricsMojo mojo = new FontmetricsMojo();
     initMojoDefault(mojo);
 
@@ -96,7 +108,7 @@ public class FOPReaderExitTest extends PlexusTestCase {
       mojo.execute();
 
       File expectedGen = new File(mojo.targetDirectory, "test-metrics.xml");
-      assertTrue("metrics file not generated: " + expectedGen.getAbsolutePath(), !expectedGen.exists());
+      assertTrue(!expectedGen.exists(), "metrics file not generated: " + expectedGen.getAbsolutePath());
     } catch (ExitException e) {
       fail("FontmetricsMojo should not exits");
     }
@@ -107,12 +119,17 @@ public class FOPReaderExitTest extends PlexusTestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  public void testExit() throws Exception {
+  @Test
+  void testExit() throws Exception {
     try {
       System.exit(42);
     } catch (ExitException e) {
-      assertEquals("Exit status", 42, e.status);
+      assertEquals(42, e.status, "Exit status");
     }
+  }
+
+  private static String getBasedir() {
+    return System.getProperty("basedir", System.getProperty("user.dir"));
   }
 
   //

@@ -31,7 +31,10 @@ import org.apache.commons.io.IOUtils;
 
 import com.agilejava.maven.docbkx.ZipFileProcessor.ZipEntryVisitor;
 
-import junit.framework.TestCase;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * DOCUMENT ME!
@@ -39,7 +42,7 @@ import junit.framework.TestCase;
  * @author $author$
  * @version $Revision$
  */
-public class ZipFileProcessorTest extends TestCase {
+public class ZipFileProcessorTest {
   private static List FILENAMES = Arrays.asList(new String[] { "test1.txt", "test2.txt", "test3.txt" });
 
   /**
@@ -47,7 +50,8 @@ public class ZipFileProcessorTest extends TestCase {
    *
    * @throws Exception DOCUMENT ME!
    */
-  public void testProcessFile() throws Exception {
+  @Test
+  void testProcessFile() throws Exception {
     File file = new File(getDirectory(), "sample.zip");
     ZipFileProcessor processor = new ZipFileProcessor(file);
     final int[] count = new int[1];
