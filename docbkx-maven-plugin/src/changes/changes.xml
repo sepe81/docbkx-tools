@@ -5,6 +5,10 @@
   </properties>
   <body>
     <release version="2.0.17-SNAPSHOT">
+      <action dev="speters" type="update">
+        migrate from FOP 1.1 to FOP 2.11 (fop-core). The Avalon dependencies, AvalonMavenBridgeLogger and
+        the protected method loadFOPConfig() of AbstractFoMojo are removed, replaced by createFopFactory().
+      </action>
       <action dev="Robert-Crews" type="update">
         better maven3 support and some fix of various documentations.
       </action>
