@@ -8,6 +8,8 @@
       <action dev="speters" type="update">
         migrate from FOP 1.1 to FOP 2.11 (fop-core). The Avalon dependencies, AvalonMavenBridgeLogger and
         the protected method loadFOPConfig() of AbstractFoMojo are removed, replaced by createFopFactory().
+        FOP now logs via java.util.logging: the fopLogLevel values are mapped to FATAL/ERROR=SEVERE, WARN=WARNING,
+        INFO=INFO, DEBUG=FINE, TRACE=FINER.
       </action>
       <action dev="Robert-Crews" type="update">
         better maven3 support and some fix of various documentations.

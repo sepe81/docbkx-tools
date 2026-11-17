@@ -49,7 +49,6 @@ import org.antlr.stringtemplate.StringTemplateGroup;
 
 import org.apache.commons.io.IOUtils;
 
-import org.apache.commons.logging.LogFactory;
 import org.apache.fop.apps.FOPException;
 import org.apache.fop.apps.FOUserAgent;
 import org.apache.fop.apps.Fop;
@@ -74,9 +73,11 @@ import org.xml.sax.SAXException;
  * @author Wilfred Springer
  */
 public abstract class AbstractFoMojo extends AbstractMojoBase {
-  private static final String[] FOP_LOGGER_NAMES = {"org.apache.fop", "org.apache.xmlgraphics"};
-
-  private final java.util.List<java.util.logging.Logger> julLoggers = new java.util.ArrayList<java.util.logging.Logger>();
+  // static strong references: java.util.logging only holds loggers weakly
+  private static final java.util.logging.Logger[] FOP_LOGGERS = {
+    java.util.logging.Logger.getLogger("org.apache.fop"),
+    java.util.logging.Logger.getLogger("org.apache.xmlgraphics")
+  };
 
   String baseUrl;
 
@@ -146,26 +147,45 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
       rootLogger.addAppender(new ConsoleAppender(
           new PatternLayout(PatternLayout.TTCC_CONVERSION_PATTERN)));
     }
-
-    // FOP 2.x logs via Commons Logging, which resolves to java.util.logging here
-    java.util.logging.Level julLevel = toJulLevel(fopLogLevel);
-    for (String name : FOP_LOGGER_NAMES) {
-      // keep strong references: java.util.logging only holds loggers weakly
-      julLoggers.add(configureJulLogger(name, julLevel));
-    }
   }
 
-  private static java.util.logging.Logger configureJulLogger(String name, java.util.logging.Level level) {
-    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(name);
-    logger.setLevel(level);
+  /**
+   * Applies {@link #fopLogLevel} to the FOP and xmlgraphics loggers. FOP 2.x logs via Commons
+   * Logging, which resolves to java.util.logging here. The previous state is restored by the
+   * returned action, because the logging configuration is global to the Maven process.
+   *
+   * @return an action that restores the previous logger and console handler levels
+   */
+  private Runnable applyFopLogLevel() {
+    final java.util.logging.Level level = toJulLevel(fopLogLevel);
+    final java.util.logging.Level[] loggerLevels = new java.util.logging.Level[FOP_LOGGERS.length];
+    for (int i = 0; i < FOP_LOGGERS.length; i++) {
+      loggerLevels[i] = FOP_LOGGERS[i].getLevel();
+      FOP_LOGGERS[i].setLevel(level);
+    }
+
     // the default console handler drops everything below INFO
+    final java.util.Map<java.util.logging.Handler, java.util.logging.Level> handlerLevels =
+        new java.util.HashMap<java.util.logging.Handler, java.util.logging.Level>();
     for (java.util.logging.Handler handler : java.util.logging.Logger.getLogger("").getHandlers()) {
       if (handler instanceof java.util.logging.ConsoleHandler
           && handler.getLevel().intValue() > level.intValue()) {
+        handlerLevels.put(handler, handler.getLevel());
         handler.setLevel(level);
       }
     }
-    return logger;
+
+    return new Runnable() {
+      public void run() {
+        for (int i = 0; i < FOP_LOGGERS.length; i++) {
+          FOP_LOGGERS[i].setLevel(loggerLevels[i]);
+        }
+        for (java.util.Map.Entry<java.util.logging.Handler, java.util.logging.Level> entry
+            : handlerLevels.entrySet()) {
+          entry.getKey().setLevel(entry.getValue());
+        }
+      }
+    };
   }
 
   static java.util.logging.Level toJulLevel(String log4jLevelName) {
@@ -198,6 +218,15 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
   public void postProcessResult(File result) throws MojoExecutionException {
     super.postProcessResult(result);
 
+    final Runnable restoreLogging = applyFopLogLevel();
+    try {
+      convertWithFop(result);
+    } finally {
+      restoreLogging.run();
+    }
+  }
+
+  private void convertWithFop(File result) throws MojoExecutionException {
     final FopFactory fopFactory = createFopFactory();
     final FOUserAgent userAgent = fopFactory.newFOUserAgent();
 
@@ -302,7 +331,9 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
         if (getLog().isDebugEnabled()) {
           getLog().debug("Using external FOP configuration file: " + externalFOPConfiguration);
         }
-        getLog().info("Ignoring pom inline FOP configuration");
+        if (fonts != null || targetResolution != 0 || sourceResolution != 0) {
+          getLog().info("Ignoring pom inline FOP configuration");
+        }
         parser = new FopConfParser(externalFOPConfiguration, baseURI);
       } else {
         final String config = buildInlineConfig();
@@ -369,6 +400,6 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
   public void adjustTransformer(Transformer transformer, String sourceFilename, File targetFile) {
     super.adjustTransformer(transformer, sourceFilename, targetFile);
 
-    baseUrl = (new File(sourceFilename)).getParentFile().toURI().toString();
+    baseUrl = (new File(sourceFilename)).getAbsoluteFile().getParentFile().toURI().toString();
   }
 }

@@ -130,6 +130,8 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
   private void assertResolvesAgainstBaseUrl() throws Exception {
     File tmp = Files.createTempDirectory("docbkx-base-").toFile();
     File probe = new File(tmp, "probe.png");
+    tmp.deleteOnExit();
+    probe.deleteOnExit();
     try {
       // Drop a probe file so FOP's resource resolver can find a real target.
       assertTrue("Could not create probe file", probe.createNewFile());
@@ -154,5 +156,21 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
       probe.delete();
       tmp.delete();
     }
+  }
+
+  /**
+   * The log4j level names accepted by {@code fopLogLevel} must map to the matching
+   * java.util.logging levels; unknown names fall back to WARNING.
+   */
+  public void testToJulLevel() {
+    assertEquals(java.util.logging.Level.OFF, AbstractFoMojo.toJulLevel("OFF"));
+    assertEquals(java.util.logging.Level.SEVERE, AbstractFoMojo.toJulLevel("FATAL"));
+    assertEquals(java.util.logging.Level.SEVERE, AbstractFoMojo.toJulLevel("ERROR"));
+    assertEquals(java.util.logging.Level.WARNING, AbstractFoMojo.toJulLevel("WARN"));
+    assertEquals(java.util.logging.Level.INFO, AbstractFoMojo.toJulLevel("INFO"));
+    assertEquals(java.util.logging.Level.FINE, AbstractFoMojo.toJulLevel("DEBUG"));
+    assertEquals(java.util.logging.Level.FINER, AbstractFoMojo.toJulLevel("TRACE"));
+    assertEquals(java.util.logging.Level.ALL, AbstractFoMojo.toJulLevel("ALL"));
+    assertEquals(java.util.logging.Level.WARNING, AbstractFoMojo.toJulLevel("nonsense"));
   }
 }
