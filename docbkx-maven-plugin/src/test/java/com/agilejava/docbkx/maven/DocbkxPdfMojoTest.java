@@ -21,6 +21,10 @@ package com.agilejava.docbkx.maven;
 
 import java.io.File;
 
+import java.nio.file.Files;
+
+import javax.xml.transform.stream.StreamSource;
+
 import org.apache.fop.apps.FopFactory;
 
 import org.apache.maven.plugin.MojoExecutionException;
@@ -107,16 +111,27 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
    * The inline-config branch of {@link AbstractFoMojo#createFopFactory()}
    * must apply {@link AbstractFoMojo#baseUrl} as the factory base URI.
    * Regression guard for the case where consumers rely on FOP resolving
-   * relative {@code <fo:external-graphic src=&quot;...&quot;/>} URIs against
+   * relative {@code <fo:external-graphic src="..."/>} URIs against
    * the source XML directory.
    */
   public void testCreateFopFactoryAppliesBaseUrl() throws Exception {
-    File tmp = File.createTempFile("docbkx-base-", "");
-    tmp.delete();
-    assertTrue("Could not create scratch dir", tmp.mkdirs());
+    assertResolvesAgainstBaseUrl();
+  }
+
+  /**
+   * The external-config branch must apply {@link AbstractFoMojo#baseUrl} as well
+   * when the configuration file does not declare its own {@code <base>} element.
+   */
+  public void testCreateFopFactoryExternalConfigAppliesBaseUrl() throws Exception {
+    mojo.externalFOPConfiguration = new File(PlexusTestCase.getBasedir(), "src/test/resources/fop-no-base.xconf");
+    assertResolvesAgainstBaseUrl();
+  }
+
+  private void assertResolvesAgainstBaseUrl() throws Exception {
+    File tmp = Files.createTempDirectory("docbkx-base-").toFile();
+    File probe = new File(tmp, "probe.png");
     try {
       // Drop a probe file so FOP's resource resolver can find a real target.
-      File probe = new File(tmp, "probe.png");
       assertTrue("Could not create probe file", probe.createNewFile());
 
       mojo.baseUrl = tmp.toURI().toString();
@@ -125,8 +140,7 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
 
       // Resolve a relative URI through the factory's user agent and verify
       // it is anchored under the configured baseUrl.
-      javax.xml.transform.stream.StreamSource resolved =
-          factory.newFOUserAgent().resolveURI("probe.png");
+      StreamSource resolved = factory.newFOUserAgent().resolveURI("probe.png");
       assertNotNull(
           "FOUserAgent.resolveURI should resolve relative URI against baseUrl="
               + mojo.baseUrl,
@@ -137,8 +151,7 @@ public class DocbkxPdfMojoTest extends PlexusTestCase {
               + tmp.toURI() + " but got: " + resolved.getSystemId(),
           resolved.getSystemId().startsWith(tmp.toURI().toString()));
     } finally {
-      // Best-effort cleanup; ignored if files persist.
-      new File(tmp, "probe.png").delete();
+      probe.delete();
       tmp.delete();
     }
   }

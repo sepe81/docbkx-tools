@@ -30,7 +30,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
 
-import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import java.nio.charset.StandardCharsets;
 
 import javax.xml.transform.Result;
@@ -41,9 +43,6 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.sax.SAXResult;
 import javax.xml.transform.stream.StreamSource;
-
-import java.net.URI;
-import java.net.URISyntaxException;
 
 import org.antlr.stringtemplate.StringTemplate;
 import org.antlr.stringtemplate.StringTemplateGroup;
@@ -75,6 +74,10 @@ import org.xml.sax.SAXException;
  * @author Wilfred Springer
  */
 public abstract class AbstractFoMojo extends AbstractMojoBase {
+  private static final String[] FOP_LOGGER_NAMES = {"org.apache.fop", "org.apache.xmlgraphics"};
+
+  private final java.util.List<java.util.logging.Logger> julLoggers = new java.util.ArrayList<java.util.logging.Logger>();
+
   String baseUrl;
 
   /**
@@ -143,7 +146,46 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
       rootLogger.addAppender(new ConsoleAppender(
           new PatternLayout(PatternLayout.TTCC_CONVERSION_PATTERN)));
     }
-    // FOP 2.x routes through Commons Logging → SLF4J; configure via SLF4J binding.
+
+    // FOP 2.x logs via Commons Logging, which resolves to java.util.logging here
+    java.util.logging.Level julLevel = toJulLevel(fopLogLevel);
+    for (String name : FOP_LOGGER_NAMES) {
+      // keep strong references: java.util.logging only holds loggers weakly
+      julLoggers.add(configureJulLogger(name, julLevel));
+    }
+  }
+
+  private static java.util.logging.Logger configureJulLogger(String name, java.util.logging.Level level) {
+    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(name);
+    logger.setLevel(level);
+    // the default console handler drops everything below INFO
+    for (java.util.logging.Handler handler : java.util.logging.Logger.getLogger("").getHandlers()) {
+      if (handler instanceof java.util.logging.ConsoleHandler
+          && handler.getLevel().intValue() > level.intValue()) {
+        handler.setLevel(level);
+      }
+    }
+    return logger;
+  }
+
+  static java.util.logging.Level toJulLevel(String log4jLevelName) {
+    switch (Level.toLevel(log4jLevelName, Level.WARN).toInt()) {
+      case Level.OFF_INT:
+        return java.util.logging.Level.OFF;
+      case Level.FATAL_INT:
+      case Level.ERROR_INT:
+        return java.util.logging.Level.SEVERE;
+      case Level.INFO_INT:
+        return java.util.logging.Level.INFO;
+      case Level.DEBUG_INT:
+        return java.util.logging.Level.FINE;
+      case Level.TRACE_INT:
+        return java.util.logging.Level.FINER;
+      case Level.ALL_INT:
+        return java.util.logging.Level.ALL;
+      default:
+        return java.util.logging.Level.WARNING;
+    }
   }
 
   /**
@@ -240,7 +282,9 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
    * Routes both inline (StringTemplate-generated) and external configurations
    * through {@link FopConfParser} so that {@link #baseUrl} — derived from the
    * source DocBook XML's parent directory in {@link #adjustTransformer} — is
-   * applied as the factory's base URI in both cases. This preserves the
+   * applied as the factory's base URI in both cases. An external configuration
+   * may override it with its own {@code <base>} element, which is resolved
+   * against the configuration file's location. This preserves the
    * pre-2.x behaviour where {@code FOUserAgent.setBaseURL(baseUrl)} was set
    * unconditionally and is essential for resolving relative {@code src=}
    * URIs in {@code <fo:external-graphic>} and friends.
@@ -258,6 +302,7 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
         if (getLog().isDebugEnabled()) {
           getLog().debug("Using external FOP configuration file: " + externalFOPConfiguration);
         }
+        getLog().info("Ignoring pom inline FOP configuration");
         parser = new FopConfParser(externalFOPConfiguration, baseURI);
       } else {
         final String config = buildInlineConfig();
@@ -324,11 +369,6 @@ public abstract class AbstractFoMojo extends AbstractMojoBase {
   public void adjustTransformer(Transformer transformer, String sourceFilename, File targetFile) {
     super.adjustTransformer(transformer, sourceFilename, targetFile);
 
-    try {
-      final String str = (new File(sourceFilename)).getParentFile().toURL().toExternalForm();
-      baseUrl = str.replace("file:/", "file:///");
-    } catch (MalformedURLException e) {
-      getLog().warn("Failed to get FO basedir", e);
-    }
+    baseUrl = (new File(sourceFilename)).getParentFile().toURI().toString();
   }
 }
